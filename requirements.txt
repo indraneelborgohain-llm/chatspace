@@ -1,6 +1,8 @@
+torch
+numpy
 datasets
 tiktoken
-datasets
 tqdm
 wandb
 ipywidgets
+safetensors
