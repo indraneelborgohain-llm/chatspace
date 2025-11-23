@@ -4,7 +4,7 @@ import time,os,gc
 import wandb
 from torch.optim.lr_scheduler import LinearLR, SequentialLR, CosineAnnealingLR
 
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 def clear_gpu_memory():
     if torch.cuda.is_available():
