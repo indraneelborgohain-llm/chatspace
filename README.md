@@ -226,3 +226,4 @@ The loss curves and metrics clearly demonstrate that **GPT-OSS** is more paramet
 - **Consistency**: GPT-OSS shows less variance in scores (4-6 range) compared to GPT2 (1-6 range), indicating more reliable performance across different model sizes.
 
 ---
+python train.py --model_size medium --max_iters 5000 --use_wandb --wandb_project gptoss-VS-gpt2 --wandb_run_name gptoss-model --log_interval 10 --eval_interval 150 --sample_every 250

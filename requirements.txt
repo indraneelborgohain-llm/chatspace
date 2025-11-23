@@ -6,3 +6,4 @@ tqdm
 wandb
 ipywidgets
 safetensors
+tiktoken
