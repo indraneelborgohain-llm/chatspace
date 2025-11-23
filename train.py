@@ -18,11 +18,11 @@ from architecture.tokenizer import get_tokenizer
 from training.trainer import clear_gpu_memory
 
 try:
-    import wandb
-    WANDB_AVAILABLE = True
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD_AVAILABLE = True
 except ImportError:
-    WANDB_AVAILABLE = False
-    wandb = None
+    TENSORBOARD_AVAILABLE = False
+    SummaryWriter = None
 
 # ------------------------------- args ----------------------------------------
 def get_args():
@@ -57,10 +57,9 @@ def get_args():
     # checkpoint
     ap.add_argument("--resume", action="store_true", default=False)
     ap.add_argument("--checkpoint_path", type=str, default=None, help="Path to checkpoint to resume from")
-    # wandb
-    ap.add_argument("--use_wandb", action="store_true", default=False)
-    ap.add_argument("--wandb_project", type=str, default="gptoss-VS-gpt2")
-    ap.add_argument("--wandb_run_name", type=str, default="gptoss-model")
+    # tensorboard
+    ap.add_argument("--use_tensorboard", action="store_true", default=False, help="Enable TensorBoard logging")
+    ap.add_argument("--log_dir", type=str, default="runs", help="TensorBoard log directory")
     return ap.parse_args()
 
 # ------------------------------ helpers --------------------------------------
@@ -190,23 +189,25 @@ def main():
     device = args.device if torch.cuda.is_available() or args.device == "cpu" else "cpu"
     print(f"Using device: {device}")
     
-    # Initialize wandb if requested
-    if args.use_wandb and WANDB_AVAILABLE:
-        wandb.init(
-            project=args.wandb_project,
-            name=args.wandb_run_name,
-            config={
-                "model_size": args.model_size,
-                "batch_size": args.batch_size,
-                "block_size": args.block_size,
-                "max_iters": args.max_iters,
-                "lr": args.lr,
-                "weight_decay": args.weight_decay,
-                "warmup_iters": args.warmup_iters,
-                "dtype": args.dtype,
-                "device": device,
-            }
-        )
+    # Initialize TensorBoard if requested
+    writer = None
+    if args.use_tensorboard and TENSORBOARD_AVAILABLE:
+        log_dir = os.path.join(args.log_dir, f"{args.model_size}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        writer = SummaryWriter(log_dir)
+        print(f"TensorBoard logging to: {log_dir}")
+        print(f"Run 'tensorboard --logdir={args.log_dir}' to view")
+        
+        # Log hyperparameters
+        hparams = {
+            "model_size": args.model_size,
+            "batch_size": args.batch_size,
+            "block_size": args.block_size,
+            "max_iters": args.max_iters,
+            "lr": args.lr,
+            "weight_decay": args.weight_decay,
+            "warmup_iters": args.warmup_iters,
+        }
+        writer.add_text("hyperparameters", str(hparams), 0)
     
     # Tokenizer
     tokenizer = get_tokenizer()
@@ -316,20 +317,17 @@ def main():
             t0 = time.time()
             print(f"iter {iter_num:06d} | loss {total_loss:.4f} | lr {lr:.6e} | {dt*1000:.1f} ms/it")
             
-            if args.use_wandb and WANDB_AVAILABLE:
-                wandb.log({
-                    "train/loss": total_loss,
-                    "train/lr": lr,
-                    "train/iter": iter_num,
-                }, step=iter_num)
+            if writer is not None:
+                writer.add_scalar("train/loss", total_loss, iter_num)
+                writer.add_scalar("train/lr", lr, iter_num)
         
         # Evaluation
         if args.eval_interval > 0 and iter_num > 0 and (iter_num % args.eval_interval == 0):
             val_loss = evaluate(model, val_loader, device, args.eval_iters, vocab_size)
             print(f"[eval] iter {iter_num} | val_loss {val_loss:.4f}")
             
-            if args.use_wandb and WANDB_AVAILABLE:
-                wandb.log({"val/loss": val_loss}, step=iter_num)
+            if writer is not None:
+                writer.add_scalar("val/loss", val_loss, iter_num)
             
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -345,8 +343,8 @@ def main():
                 }
                 torch.save(checkpoint, os.path.join(args.out_dir, "gptoss_best.pt"))
                 
-                if args.use_wandb and WANDB_AVAILABLE:
-                    wandb.log({"val/best_loss": best_val_loss}, step=iter_num)
+                if writer is not None:
+                    writer.add_scalar("val/best_loss", best_val_loss, iter_num)
         
         # Sampling
         if args.sample_every > 0 and iter_num > 0 and (iter_num % args.sample_every == 0):
@@ -362,10 +360,8 @@ def main():
                 print(txt)
                 print("--------------\n")
                 
-                if args.use_wandb and WANDB_AVAILABLE:
-                    wandb.log({
-                        "samples/generated_text": wandb.Html(f"<pre>{txt}</pre>")
-                    }, step=iter_num)
+                if writer is not None:
+                    writer.add_text("samples/generated_text", txt, iter_num)
             except Exception as e:
                 print(f"[sample] Error: {e}")
         
@@ -395,8 +391,9 @@ def main():
     torch.save(checkpoint, os.path.join(args.out_dir, "gptoss.pt"))
     print(f"Saved final model to {args.out_dir}/gptoss.pt")
     
-    if args.use_wandb and WANDB_AVAILABLE:
-        wandb.finish()
+    if writer is not None:
+        writer.close()
+        print(f"\nTensorBoard logs saved. View with: tensorboard --logdir={args.log_dir}")
 
 if __name__ == "__main__":
     main()
