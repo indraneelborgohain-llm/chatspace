@@ -250,16 +250,21 @@ def main():
         # RotaryEmbedding buffers computed on first forward.
 
     # FSDP
-    model = FSDP(
+    if is_dist() or "LOCAL_RANK" in os.environ:
+        model = FSDP(
         base_model,
         auto_wrap_policy=auto_wrap,
-        device_id=None,                # let FSDP manage placement via to_empty
+        device_id=None,
         mixed_precision=mp,
         use_orig_params=True,
         limit_all_gathers=True,
         param_init_fn=_fsdp_param_init_fn,
     )
-
+    else:
+        # Single GPU - just move model to device
+        # base_model.to_empty(device=torch.device(device))
+        _fsdp_param_init_fn(base_model)
+        model = base_model
     if args.compile and "cuda" in device:
         rank0_print("[train] Skipping torch.compile with FSDP.")
 
