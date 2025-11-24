@@ -3,7 +3,7 @@ numpy
 datasets
 tiktoken
 tqdm
-wandb
 ipywidgets
 safetensors
-tiktoken
+huggingface_hub
+tensorboard
