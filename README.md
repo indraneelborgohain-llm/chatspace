@@ -230,3 +230,5 @@ python train.py --model_size medium --max_iters 5000 --use_wandb --wandb_project
 
 python train.py --model_size medium --use_tensorboard
 tensorboard --logdir=runs
+
+python architecture\open-gpt-oss\download_weights.py --output_dir gpt_oss_weights
