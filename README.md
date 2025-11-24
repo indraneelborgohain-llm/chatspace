@@ -228,4 +228,5 @@ The loss curves and metrics clearly demonstrate that **GPT-OSS** is more paramet
 ---
 python train.py --model_size medium --max_iters 5000 --use_wandb --wandb_project gptoss-VS-gpt2 --wandb_run_name gptoss-model --log_interval 10 --eval_interval 150 --sample_every 250
 
-python train.py --use_tensorboard --log_dir my_logs
+python train.py --model_size medium --use_tensorboard
+tensorboard --logdir=runs
