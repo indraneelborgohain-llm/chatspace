@@ -21,8 +21,8 @@ st.set_page_config(
 
 # Cache the model loading to avoid reloading on every interaction
 @st.cache_resource
-def load_neel_model(checkpoint_path, device):
-    """Load and cache the model"""
+def load_sapphire_model(checkpoint_path, device):
+    """Load and cache the Sapphire model"""
     try:
         if not os.path.exists(checkpoint_path):
             return None, f"Checkpoint not found: {checkpoint_path}"
