@@ -211,3 +211,236 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ========================================================================================
+# GPT-OSS 20B Model Inference
+# ========================================================================================
+
+def load_gptoss20b_and_generate(
+    weights_dir="architecture/open-gpt-oss/weights",
+    prompt="Once upon a time",
+    max_tokens=200,
+    temperature=0.8,
+    top_k=200,
+    device=None
+):
+    """
+    Load the GPT-OSS 20B model with downloaded weights and generate text.
+    
+    This function loads the official GPT-OSS 20B architecture and weights.
+    Make sure you've downloaded the weights first using:
+        python architecture/open-gpt-oss/download_weights.py
+    
+    Args:
+        weights_dir: Directory containing the downloaded weights (config.json, model.safetensors, etc.)
+        prompt: Text prompt to start generation
+        max_tokens: Number of tokens to generate
+        temperature: Sampling temperature (higher = more random)
+        top_k: Top-k sampling parameter
+        device: Device to use ('cuda:0', 'cpu', etc.). Auto-detect if None.
+    
+    Returns:
+        Generated text string
+    """
+    import json
+    from pathlib import Path
+    
+    # Import GPT-OSS model
+    import sys
+    sys.path.insert(0, 'architecture/open-gpt-oss')
+    from model import Transformer, gpt_oss_20b_config
+    
+    # Auto-detect device
+    if device is None:
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    
+    print(f"Loading GPT-OSS 20B model from: {weights_dir}")
+    print(f"Using device: {device}")
+    
+    weights_path = Path(weights_dir)
+    
+    # Check if weights directory exists
+    if not weights_path.exists():
+        raise FileNotFoundError(
+            f"Weights directory not found: {weights_dir}\n"
+            "Please download weights first using:\n"
+            "  python architecture/open-gpt-oss/download_weights.py"
+        )
+    
+    # Load config
+    config_file = weights_path / "config.json"
+    if config_file.exists():
+        print("Loading config from config.json...")
+        with open(config_file, 'r') as f:
+            config_dict = json.load(f)
+        # Use the config from file if available
+        print(f"Config loaded: {config_dict.get('model_type', 'gpt-oss')}")
+    
+    # Create model with 20B config
+    print("Creating GPT-OSS 20B model...")
+    cfg = gpt_oss_20b_config()
+    model = Transformer(cfg)
+    
+    # Count parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {total_params/1e9:.2f}B")
+    
+    # Load weights
+    weights_file = None
+    
+    # Try to find safetensors or pytorch_model.bin
+    for ext in ["*.safetensors", "*.bin", "*.pt"]:
+        weight_files = list(weights_path.glob(ext))
+        if weight_files:
+            weights_file = weight_files[0]
+            break
+    
+    if weights_file is None:
+        raise FileNotFoundError(
+            f"No weight files found in {weights_dir}\n"
+            "Expected files: model.safetensors, pytorch_model.bin, or .pt files"
+        )
+    
+    print(f"Loading weights from: {weights_file.name}")
+    
+    # Load weights based on file type
+    if str(weights_file).endswith('.safetensors'):
+        try:
+            from safetensors.torch import load_file
+            state_dict = load_file(str(weights_file))
+            print("Loaded weights from safetensors")
+        except ImportError:
+            raise ImportError(
+                "safetensors package required to load .safetensors files.\n"
+                "Install with: pip install safetensors"
+            )
+    else:
+        # Load .bin or .pt files
+        state_dict = torch.load(weights_file, map_location=device)
+        if isinstance(state_dict, dict) and "model_state_dict" in state_dict:
+            state_dict = state_dict["model_state_dict"]
+        print(f"Loaded weights from {weights_file.suffix}")
+    
+    # Load state dict into model
+    try:
+        model.load_state_dict(state_dict, strict=False)
+        print("✅ Weights loaded successfully!")
+    except Exception as e:
+        print(f"⚠️ Warning loading weights (may still work): {e}")
+    
+    # Move to device and set to eval mode
+    model = model.to(device)
+    model.eval()
+    
+    print(f"\nGenerating text with prompt: '{prompt}'")
+    print("=" * 70)
+    
+    # Tokenizer
+    tokenizer = get_tokenizer()
+    
+    # Tokenize prompt
+    if prompt:
+        tokens = tokenizer.encode(prompt)
+    else:
+        tokens = tokenizer.encode("\n")
+    
+    tokens = torch.tensor(tokens, device=device, dtype=torch.long).unsqueeze(0)  # Add batch dim
+    
+    # Generate
+    with torch.no_grad():
+        for _ in range(max_tokens):
+            # Forward pass
+            logits, _ = model(tokens, labels=None)
+            next_logits = logits[0, -1, :]  # Get last token logits
+            
+            # Apply temperature
+            if temperature != 1.0:
+                next_logits = next_logits / max(1e-6, temperature)
+            
+            # Apply top-k filtering
+            if top_k and top_k > 0:
+                v, _ = torch.topk(next_logits, min(top_k, next_logits.size(-1)))
+                next_logits[next_logits < v[-1]] = -float("inf")
+            
+            # Sample
+            probs = F.softmax(next_logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1).unsqueeze(0)
+            
+            # Append to sequence
+            tokens = torch.cat([tokens, next_token], dim=1)
+            
+            # Check for EOS if defined
+            if cfg.eos_token_id is not None and next_token.item() == cfg.eos_token_id:
+                break
+    
+    # Decode
+    generated_text = tokenizer.decode(tokens[0].tolist())
+    
+    return generated_text
+
+
+def main_gptoss20b():
+    """Command line interface for GPT-OSS 20B inference"""
+    parser = argparse.ArgumentParser(description="GPT-OSS 20B Text Generation")
+    parser.add_argument(
+        "--weights_dir",
+        type=str,
+        default="architecture/open-gpt-oss/weights",
+        help="Directory containing downloaded GPT-OSS 20B weights"
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="Once upon a time",
+        help="Text prompt for generation"
+    )
+    parser.add_argument(
+        "--max_tokens",
+        type=int,
+        default=200,
+        help="Number of tokens to generate"
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.8,
+        help="Sampling temperature"
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=200,
+        help="Top-k sampling parameter"
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Device to use (cuda:0, cpu, etc.)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Generate text
+    generated_text = load_gptoss20b_and_generate(
+        weights_dir=args.weights_dir,
+        prompt=args.prompt,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        top_k=args.top_k,
+        device=args.device
+    )
+    
+    print(generated_text)
+    print("\n" + "=" * 70)
+
+
+# Run GPT-OSS 20B inference if called with --gptoss20b flag
+if __name__ == "__main__":
+    import sys
+    if "--gptoss20b" in sys.argv:
+        sys.argv.remove("--gptoss20b")
+        main_gptoss20b()
+    else:
+        main()

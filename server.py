@@ -7,7 +7,7 @@ import torch
 import os
 from pathlib import Path
 
-from inference import load_model_and_generate
+from inference import load_model_and_generate, load_gptoss20b_and_generate
 from architecture.gptoss import Transformer, ModelConfig
 from architecture.tokenizer import get_tokenizer
 
@@ -21,7 +21,7 @@ st.set_page_config(
 
 # Cache the model loading to avoid reloading on every interaction
 @st.cache_resource
-def load_model(checkpoint_path, device):
+def load_neel_model(checkpoint_path, device):
     """Load and cache the model"""
     try:
         if not os.path.exists(checkpoint_path):
