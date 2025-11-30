@@ -116,7 +116,7 @@ def main():
         )
     
     # Load model
-    model, model_info = load_model(checkpoint_path, device)
+    model, model_info = load_sapphire_model(checkpoint_path, device)
     
     if model is None:
         st.error(f"❌ {model_info}")
