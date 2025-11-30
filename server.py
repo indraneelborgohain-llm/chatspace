@@ -16,7 +16,8 @@ from architecture.tokenizer import get_tokenizer
 st.set_page_config(
     page_title="GPT-OSS Text Generator",
     page_icon="🤖",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # Cache the model loading to avoid reloading on every interaction
@@ -144,7 +145,7 @@ def main():
             "Max tokens",
             min_value=10,
             max_value=500,
-            value=200,
+            value=20,
             step=10
         )
         
