@@ -82,20 +82,21 @@ def generate_from_model(model, prompt, max_tokens, temperature, top_k, device):
 def main():
     # Title and description
     st.title("💎 Sapphire Text Generator")
-    st.markdown("Generate creative text using AI")
     
-    # Model selection at the top
-    col1, col2, col3 = st.columns([2, 2, 1])
-    
-    with col1:
+    # Sidebar for settings
+    with st.sidebar:
+        st.header("⚙️ Settings")
+        
+        # Model selection
         model_type = st.selectbox(
             "Select Model",
             ["Sapphire (Custom)", "GPT-OSS 20B"],
             index=0
         )
-    
-    with col2:
+        
+        # Checkpoint/weights selection
         if model_type == "Sapphire (Custom)":
+            st.subheader("Model Checkpoint")
             # Find available checkpoints
             checkpoint_dir = "model"
             available_checkpoints = []
@@ -117,68 +118,65 @@ def main():
                     value="model/gptoss_best.pt"
                 )
         else:
+            st.subheader("Weights Directory")
             weights_dir = st.text_input(
-                "Weights directory",
+                "Path to weights",
                 value="architecture/open-gpt-oss/weights"
             )
-    
-    with col3:
+        
+        # Device
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         st.text_input("Device", value=device, disabled=True)
-    
-    st.markdown("---")
-    
-    # Main prompt area (larger)
-    prompt = st.text_area(
-        "Enter your prompt:",
-        value="Once upon a time",
-        height=120,
-        placeholder="Type your prompt here..."
-    )
-    
-    # Generation parameters in expandable section
-    with st.expander("⚙️ Advanced Settings"):
-        param_col1, param_col2, param_col3 = st.columns(3)
         
-        with param_col1:
-            max_tokens = st.slider(
-                "Max tokens",
-                min_value=10,
-                max_value=500,
-                value=200,
-                step=10
-            )
+        st.markdown("---")
         
-        with param_col2:
-            temperature = st.slider(
-                "Temperature",
-                min_value=0.1,
-                max_value=2.0,
-                value=0.8,
-                step=0.1
-            )
+        # Generation parameters
+        st.subheader("Generation Parameters")
         
-        with param_col3:
-            top_k = st.slider(
-                "Top-k",
-                min_value=1,
-                max_value=500,
-                value=200,
-                step=10
-            )
+        max_tokens = st.slider(
+            "Max tokens",
+            min_value=10,
+            max_value=500,
+            value=200,
+            step=10
+        )
+        
+        temperature = st.slider(
+            "Temperature",
+            min_value=0.1,
+            max_value=2.0,
+            value=0.8,
+            step=0.1
+        )
+        
+        top_k = st.slider(
+            "Top-k",
+            min_value=1,
+            max_value=500,
+            value=200,
+            step=10
+        )
     
-    # Generate button (full width, prominent)
-    generate_button = st.button("🚀 Generate", type="primary", use_container_width=True)
+    # Initialize session state for conversation history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
     
-    # Initialize session state for generated text
-    if "generated_text" not in st.session_state:
-        st.session_state.generated_text = ""
+    # Display conversation history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
     
-    # Generate text when button is clicked
-    if generate_button:
-        if not prompt.strip():
-            st.error("Please enter a prompt!")
-        else:
+    # Chat input at the bottom
+    if prompt := st.chat_input("Enter your prompt..."):
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # Add user message to history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Generate response
+        with st.chat_message("assistant"):
             with st.spinner("Generating..."):
                 try:
                     if model_type == "Sapphire (Custom)":
@@ -207,53 +205,15 @@ def main():
                             device=device
                         )
                     
-                    st.session_state.generated_text = generated
+                    st.markdown(generated)
+                    
+                    # Add assistant message to history
+                    st.session_state.messages.append({"role": "assistant", "content": generated})
+                    
                 except Exception as e:
-                    st.error(f"Error: {str(e)}")
-                    st.stop()
-    
-    # Display generated text
-    if st.session_state.generated_text:
-        st.markdown("### ✨ Generated Text")
-        st.markdown(
-            f"""<div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; 
-            font-family: monospace; white-space: pre-wrap;'>{st.session_state.generated_text}</div>""",
-            unsafe_allow_html=True
-        )
-        
-        # Download button
-        st.download_button(
-            label="📋 Download",
-            data=st.session_state.generated_text,
-            file_name="generated_text.txt",
-            mime="text/plain"
-        )
-    
-    # Examples at the bottom
-    st.markdown("---")
-    st.markdown("**💡 Try these prompts:**")
-    
-    examples_col1, examples_col2, examples_col3 = st.columns(3)
-    
-    with examples_col1:
-        if st.button("🏰 Fantasy", use_container_width=True):
-            st.session_state.example_prompt = "In a kingdom far away, there lived a brave knight who"
-            st.rerun()
-    
-    with examples_col2:
-        if st.button("🚀 Sci-Fi", use_container_width=True):
-            st.session_state.example_prompt = "The spaceship landed on the mysterious planet, and the crew discovered"
-            st.rerun()
-    
-    with examples_col3:
-        if st.button("🎭 Mystery", use_container_width=True):
-            st.session_state.example_prompt = "The detective examined the clues carefully and realized that"
-            st.rerun()
-    
-    # Update prompt if example was clicked
-    if "example_prompt" in st.session_state:
-        prompt = st.session_state.example_prompt
-        del st.session_state.example_prompt
+                    error_msg = f"Error: {str(e)}"
+                    st.error(error_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
 
 
 if __name__ == "__main__":
