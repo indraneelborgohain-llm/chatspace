@@ -80,8 +80,15 @@ def generate_from_model(model, prompt, max_tokens, temperature, top_k, device):
 
 
 def main():
-    # Title and description
-    st.title("💎 Sapphire Text Generator")
+    # Minimal header with icon
+    st.markdown(
+        """
+        <div style='text-align: right; padding: 10px;'>
+            <span style='font-size: 24px;'>💎</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     
     # Sidebar for settings
     with st.sidebar:
