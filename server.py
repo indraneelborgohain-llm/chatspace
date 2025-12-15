@@ -169,6 +169,30 @@ def main():
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
+    # Load model once and cache in session state
+    if "loaded_model" not in st.session_state or "loaded_model_type" not in st.session_state:
+        st.session_state.loaded_model = None
+        st.session_state.loaded_model_type = None
+        st.session_state.loaded_model_path = None
+    
+    # Check if we need to reload the model (model type or path changed)
+    current_model_key = f"{model_type}_{checkpoint_path if model_type == 'Sapphire (Custom)' else weights_dir}"
+    if st.session_state.loaded_model_path != current_model_key:
+        with st.spinner("Loading model..."):
+            if model_type == "Sapphire (Custom)":
+                model, model_info = load_sapphire_model(checkpoint_path, device)
+                if model is None:
+                    st.error(f"❌ {model_info}")
+                    st.stop()
+                st.session_state.loaded_model = model
+                st.session_state.loaded_model_type = "sapphire"
+                st.session_state.loaded_model_path = current_model_key
+            else:
+                # For GPT-OSS 20B, we'll load on demand since it's called via function
+                st.session_state.loaded_model = None
+                st.session_state.loaded_model_type = "gptoss20b"
+                st.session_state.loaded_model_path = current_model_key
+    
     # Display conversation history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -188,14 +212,9 @@ def main():
             with st.spinner("Generating..."):
                 try:
                     if model_type == "Sapphire (Custom)":
-                        # Load Sapphire model
-                        model, model_info = load_sapphire_model(checkpoint_path, device)
-                        if model is None:
-                            st.error(f"❌ {model_info}")
-                            st.stop()
-                        
+                        # Use cached model
                         generated = generate_from_model(
-                            model=model,
+                            model=st.session_state.loaded_model,
                             prompt=prompt,
                             max_tokens=max_tokens,
                             temperature=temperature,

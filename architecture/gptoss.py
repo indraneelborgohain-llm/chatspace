@@ -15,7 +15,7 @@ class ModelConfig:
     num_experts: int = 32
     experts_per_token: int = 4
     vocab_size: int = 201088
-    hidden_size: int = 2880
+    hidden_size: int = 2880 #embeding dimensins
     intermediate_size: int = 2880
     swiglu_limit: float = 7.0
     head_dim: int = 64
@@ -334,9 +334,6 @@ class MLPBlock(torch.nn.Module):
         output = output.view(seq_len, hidden_size)
         return x + output
 
-
-
-
 class TransformerBlock(torch.nn.Module):
     def __init__(
         self,
@@ -353,7 +350,6 @@ class TransformerBlock(torch.nn.Module):
         x = self.attn(x)
         x = self.mlp(x)
         return x
-
 
 class Transformer(torch.nn.Module):
     def __init__(
@@ -440,7 +436,6 @@ class Transformer(torch.nn.Module):
         #         raise
 
         return model
-
 
 class TokenGenerator:
     @torch.inference_mode()
